@@ -1,198 +1,181 @@
 import asyncio
 import os
+import re
+import glob
 import edge_tts
 
+
 VOICE = "zh-CN-XiaoxiaoNeural"
+RATE = "-10%"
 
-GRAMMAR = {
-    1: [
-        "我是学生。",
-        "他是老师。",
-        "她是中国人。",
-        "我是学生，他是老师。",
-    ],
+BASE_DIR = "src/app/ngu-phap/hsk1"
+AUDIO_DIR = "public/audio/grammar/hsk1"
 
-    2: [
-        "我叫小明。",
-        "你叫什么名字？",
-        "他叫王老师。",
-        "我叫李明。",
-    ],
 
-    3: [
-        "你是学生吗？",
-        "你好吗？",
-        "他是老师吗？",
-        "你喜欢喝茶吗？",
-    ],
+def extract_examples(lesson):
+    """
+    Đọc trực tiếp page.js của từng bài
+    và lấy toàn bộ nội dung trong:
+    
+    <div className="example-chinese">
+        ...
+    </div>
+    """
 
-    4: [
-        "你呢？",
-        "他呢？",
-        "你叫什么名字呢？",
-        "你的朋友呢？",
-    ],
+    path = os.path.join(
+        BASE_DIR,
+        str(lesson),
+        "page.js"
+    )
 
-    5: [
-        "这是我的书。",
-        "那是你的杯子。",
-        "他是我的朋友。",
-        "中国的学生。",
-        "我的朋友。",
-        "我的家。",
-    ],
+    if not os.path.exists(path):
+        print(f"LOI: Khong tim thay {path}")
+        return []
 
-    6: [
-        "我不吃饭。",
-        "我不喝茶。",
-        "他不去学校。",
-        "我不好。",
-        "今天不冷。",
-        "他不是学生。",
-    ],
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
 
-    7: [
-        "我没有钱。",
-        "我没有书。",
-        "他没有朋友。",
-        "我家没有电视。",
-        "我没有吃饭。",
-        "他没有去学校。",
-    ],
+    pattern = (
+        r'<div\s+className="example-chinese">\s*'
+        r'(.*?)'
+        r'\s*</div>'
+    )
 
-    8: [
-        "我有一本书。",
-        "我有一个朋友。",
-        "她有一个哥哥。",
-        "我有一部手机。",
-        "他有一辆车。",
-        "学校有很多学生。",
-        "家里有三个人。",
-        "我没有车。",
-    ],
+    matches = re.findall(
+        pattern,
+        content,
+        flags=re.DOTALL
+    )
 
-    9: [
-        "我在学校。",
-        "他在家。",
-        "老师在学校。",
-        "妈妈在家。",
-        "书在桌子上。",
-        "我在学校学习。",
-        "他在家吃饭。",
-    ],
+    examples = []
 
-    10: [
-        "这是我的书。",
-        "这个人是老师。",
-        "那是我的朋友。",
-        "那个人是老师。",
-        "哪个人是你的朋友？",
-        "哪本书是你的？",
-    ],
+    for text in matches:
+        # Xóa khoảng trắng thừa
+        text = text.strip()
 
-    11: [
-        "你是谁？",
-        "他是谁？",
-        "你叫什么名字？",
-        "你吃什么？",
-        "这是什么？",
-        "你在哪里？",
-        "学校在哪里？",
-    ],
+        # Chuyển xuống dòng thành khoảng trắng
+        text = re.sub(r"\s+", " ", text)
 
-    12: [
-        "我很好。",
-        "她很漂亮。",
-        "今天很热。",
-        "中国很大。",
-        "这个房间很小。",
-    ],
+        # Nếu nội dung có JSX đơn giản thì bỏ phần JSX
+        text = re.sub(r"<[^>]+>", "", text)
 
-    13: [
-        "我是学生，他也是学生。",
-        "我喜欢喝茶，她也喜欢喝茶。",
-        "我也学习汉语。",
-        "我也很好。",
-        "我们都是学生。",
-        "他们都喜欢中国。",
-        "我们都学习汉语。",
-    ],
+        # Bỏ khoảng trắng dư
+        text = text.strip()
 
-    14: [
-        "三个人。",
-        "一本书。",
-        "一个人。",
-        "三个学生。",
-        "两本字典。",
-        "一杯茶。",
-        "两杯咖啡。",
-        "这个人。",
-        "那个学生。",
-    ],
+        if text:
+            examples.append(text)
 
-    15: [
-        "我吃饭。",
-        "我喝茶。",
-        "我很好。",
-        "今天很热。",
-        "我今天学习汉语。",
-        "我明天去学校。",
-        "我在学校学习。",
-        "他在家吃饭。",
-        "我今天在学校学习。",
-        "妈妈晚上在家吃饭。",
-    ],
+    return examples
 
-    16: [
-        "我们走吧。",
-        "我们吃饭吧。",
-        "我们学习吧。",
-        "我们喝茶吧。",
-        "坐吧。",
-        "请进吧。",
-        "你是学生吧？",
-        "他是老师吧？",
-    ],
-}
+
+def delete_old_audio(lesson):
+    """
+    Xóa các example-*.mp3 cũ để tránh
+    còn file audio thừa khi số câu thay đổi.
+    """
+
+    folder = os.path.join(
+        AUDIO_DIR,
+        f"bai-{lesson}"
+    )
+
+    os.makedirs(folder, exist_ok=True)
+
+    old_files = glob.glob(
+        os.path.join(folder, "example-*.mp3")
+    )
+
+    for file in old_files:
+        try:
+            os.remove(file)
+        except OSError:
+            pass
 
 
 async def create_audio(lesson, index, text):
-    folder = f"public/audio/grammar/hsk1/bai-{lesson}"
+    folder = os.path.join(
+        AUDIO_DIR,
+        f"bai-{lesson}"
+    )
+
     os.makedirs(folder, exist_ok=True)
 
     filename = f"example-{index}.mp3"
-    output = os.path.join(folder, filename)
+
+    output = os.path.join(
+        folder,
+        filename
+    )
 
     communicate = edge_tts.Communicate(
         text=text,
         voice=VOICE,
-        rate="-10%"
+        rate=RATE
     )
 
     await communicate.save(output)
 
-    print(f"OK: Bai {lesson} - {filename}")
+    print(
+        f"OK: Bai {lesson} - "
+        f"{filename} - {text}"
+    )
 
 
 async def main():
-    tasks = []
 
-    for lesson, sentences in GRAMMAR.items():
-        for index, sentence in enumerate(sentences, start=1):
-            tasks.append(
+    all_tasks = []
+
+    print()
+    print("==========================================")
+    print("KIEM TRA 16 BAI NGU PHAP HSK1")
+    print("==========================================")
+
+    for lesson in range(1, 17):
+
+        examples = extract_examples(lesson)
+
+        print()
+        print(
+            f"Bai {lesson}: "
+            f"{len(examples)} cau"
+        )
+
+        if not examples:
+            print("  -> Khong tim thay example.")
+            continue
+
+        # Xóa audio cũ của bài này
+        delete_old_audio(lesson)
+
+        # Hiển thị chính xác câu sẽ tạo
+        for index, text in enumerate(
+            examples,
+            start=1
+        ):
+            print(
+                f"  {index}. {text}"
+            )
+
+            all_tasks.append(
                 create_audio(
                     lesson,
                     index,
-                    sentence
+                    text
                 )
             )
 
-    await asyncio.gather(*tasks)
+    print()
+    print("==========================================")
+    print("BAT DAU TAO AUDIO")
+    print("==========================================")
+    print()
+
+    await asyncio.gather(*all_tasks)
 
     print()
-    print("======================================")
+    print("==========================================")
     print("DA TAO XONG AUDIO NGU PHAP HSK1")
-    print("======================================")
+    print("==========================================")
 
 
 if __name__ == "__main__":

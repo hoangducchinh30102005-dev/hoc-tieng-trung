@@ -1324,3 +1324,185 @@ footer p {
     grid-template-columns: 1fr;
   }
 }
+.personal-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  padding: 40px 20px;
+}
+
+.personal-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.personal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.personal-label {
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.personal-header h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  color: #0f172a;
+}
+
+.personal-header p {
+  margin: 0;
+  color: #64748b;
+}
+
+.logout-button {
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #dc2626;
+  padding: 10px 18px;
+  border-radius: 9px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.personal-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 22px;
+}
+
+.personal-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.personal-card-title h2,
+.personal-card h2 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.personal-card-title span {
+  background: #eff6ff;
+  color: #2563eb;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  color: #475569;
+}
+
+.progress-info strong {
+  color: #2563eb;
+}
+
+.progress-bar {
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: #2563eb;
+}
+
+.personal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.personal-feature {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 22px;
+  text-decoration: none;
+  color: inherit;
+  transition: 0.2s;
+}
+
+.personal-feature:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+}
+
+.feature-icon {
+  font-size: 32px;
+  margin-bottom: 14px;
+}
+
+.personal-feature h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+}
+
+.personal-feature p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.account-card {
+  margin-top: 10px;
+}
+
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.account-row:last-child {
+  border-bottom: none;
+}
+
+.account-row span {
+  color: #64748b;
+}
+
+.account-row strong {
+  color: #0f172a;
+}
+
+@media (max-width: 800px) {
+  .personal-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .personal-header {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 500px) {
+  .personal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-header h1 {
+    font-size: 26px;
+  }
+}
