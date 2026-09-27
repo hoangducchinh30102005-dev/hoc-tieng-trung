@@ -15,18 +15,23 @@ export async function updateSession(request) {
           return request.cookies.getAll();
         },
 
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value, options }) => {
             request.cookies.set(name, value);
             supabaseResponse.cookies.set(name, value, options);
           });
+
+          if (headers) {
+            for (const [name, value] of headers.entries()) {
+              supabaseResponse.headers.set(name, value);
+            }
+          }
         },
       },
     }
   );
 
   const { data } = await supabase.auth.getClaims();
-
   const user = data?.claims ?? null;
 
   const pathname = request.nextUrl.pathname;
@@ -46,7 +51,34 @@ export async function updateSession(request) {
     const url = request.nextUrl.clone();
     url.pathname = "/dang-nhap";
 
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+
+    for (const cookie of supabaseResponse.cookies.getAll()) {
+      redirectResponse.cookies.set(
+        cookie.name,
+        cookie.value,
+        cookie
+      );
+    }
+
+    for (const headerName of [
+      "cache-control",
+      "expires",
+      "pragma",
+    ]) {
+      const value = supabaseResponse.headers.get(
+        headerName
+      );
+
+      if (value) {
+        redirectResponse.headers.set(
+          headerName,
+          value
+        );
+      }
+    }
+
+    return redirectResponse;
   }
 
   return supabaseResponse;
