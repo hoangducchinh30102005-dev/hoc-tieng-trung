@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { createClient } from "@/lib/supabase";
+
+const LESSON_KEY = "chao-hoi";
 
 const words = [
   {
@@ -26,7 +29,8 @@ const words = [
     hanviet: "",
     example: "老师，您好！",
     translation: "Thưa cô/thầy, em chào cô/thầy!",
-    usage: "Dùng khi chào người lớn tuổi, giáo viên hoặc trong hoàn cảnh lịch sự.",
+    usage:
+      "Dùng khi chào người lớn tuổi, giáo viên hoặc trong hoàn cảnh lịch sự.",
     tip: "您 là cách nói lịch sự của 你.",
     audio: "/audio/hsk1/chao-hoi/nin-hao.mp3",
     exampleAudio: "/audio/hsk1/chao-hoi/nin-hao-example.mp3",
@@ -66,7 +70,7 @@ const words = [
     example: "明天再见！",
     translation: "Hẹn gặp lại ngày mai!",
     usage: "Dùng khi kết thúc cuộc trò chuyện hoặc chia tay.",
-    tip: "再 có ý nghĩa lặp lại, vì vậy 再见 có thể hiểu là gặp lại.",
+    tip: "再 có nghĩa là lại, vì vậy 再见 có thể hiểu là gặp lại.",
     audio: "/audio/hsk1/chao-hoi/zai-jian.mp3",
     exampleAudio: "/audio/hsk1/chao-hoi/zai-jian-example.mp3",
   },
@@ -87,36 +91,163 @@ const words = [
 
 export default function ChaoHoiPage() {
   const [learned, setLearned] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const saved = localStorage.getItem("hsk1-chao-hoi-learned");
+    async function loadProgress() {
+      const supabase = createClient();
 
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        // Chỉ giữ ID hợp lệ và loại bỏ trùng lặp
-        const validIds = [
-          ...new Set(
-            data.filter((id) => words.some((word) => word.id === id))
-          ),
-        ];
+      if (!user) {
+        return;
+      }
 
-        setLearned(validIds);
+      let localIds = [];
 
-        // Lưu lại dữ liệu đã được làm sạch
-        localStorage.setItem(
-          "hsk1-chao-hoi-learned",
-          JSON.stringify(validIds)
+      const saved = localStorage.getItem(
+        "hsk1-chao-hoi-learned"
+      );
+
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+
+          localIds = [
+            ...new Set(
+              data.filter((id) =>
+                words.some((word) => word.id === id)
+              )
+            ),
+          ];
+        } catch {
+          localStorage.removeItem(
+            "hsk1-chao-hoi-learned"
+          );
+        }
+      }
+
+      const { data: vocabularyData } = await supabase
+        .from("learned_vocabulary")
+        .select("word_key")
+        .eq("user_id", user.id)
+        .eq("hsk_level", 1)
+        .eq("topic_key", LESSON_KEY);
+
+      const databaseIds = (vocabularyData || [])
+        .map((item) => {
+          const parts = item.word_key.split("-");
+          const id = Number(parts[parts.length - 1]);
+
+          return Number.isInteger(id) ? id : null;
+        })
+        .filter((id) =>
+          words.some((word) => word.id === id)
         );
-      } catch {
-        localStorage.removeItem("hsk1-chao-hoi-learned");
+
+      const mergedIds = [
+        ...new Set([...localIds, ...databaseIds]),
+      ];
+
+      setLearned(mergedIds);
+
+      localStorage.setItem(
+        "hsk1-chao-hoi-learned",
+        JSON.stringify(mergedIds)
+      );
+
+      for (const id of localIds) {
+        if (databaseIds.includes(id)) {
+          continue;
+        }
+
+        await supabase
+          .from("learned_vocabulary")
+          .upsert(
+            {
+              user_id: user.id,
+              hsk_level: 1,
+              topic_key: LESSON_KEY,
+              word_key: `${LESSON_KEY}-${id}`,
+            },
+            {
+              onConflict: "user_id,word_key",
+            }
+          );
+      }
+
+      if (mergedIds.length === words.length) {
+        await supabase
+          .from("lesson_progress")
+          .upsert(
+            {
+              user_id: user.id,
+              hsk_level: 1,
+              lesson_type: "vocabulary",
+              lesson_key: LESSON_KEY,
+              completed: true,
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict: "user_id,lesson_type,lesson_key",
+            }
+          );
       }
     }
+
+    loadProgress();
   }, []);
 
-  const markAsLearned = (id) => {
-    if (learned.includes(id)) return;
+  async function markAsLearned(id) {
+    if (learned.includes(id) || saving) {
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setMessage(
+        "Phiên đăng nhập đã hết. Vui lòng đăng nhập lại."
+      );
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("learned_vocabulary")
+      .upsert(
+        {
+          user_id: user.id,
+          hsk_level: 1,
+          topic_key: LESSON_KEY,
+          word_key: `${LESSON_KEY}-${id}`,
+        },
+        {
+          onConflict: "user_id,word_key",
+        }
+      );
+
+    if (error) {
+      console.error("Lỗi lưu từ vựng:", error);
+
+      setMessage(
+        "Không thể lưu tiến độ. Vui lòng thử lại."
+      );
+
+      setSaving(false);
+      return;
+    }
 
     const newLearned = [...learned, id];
 
@@ -126,7 +257,41 @@ export default function ChaoHoiPage() {
       "hsk1-chao-hoi-learned",
       JSON.stringify(newLearned)
     );
-  };
+
+    if (newLearned.length === words.length) {
+      const { error: progressError } = await supabase
+        .from("lesson_progress")
+        .upsert(
+          {
+            user_id: user.id,
+            hsk_level: 1,
+            lesson_type: "vocabulary",
+            lesson_key: LESSON_KEY,
+            completed: true,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id,lesson_type,lesson_key",
+          }
+        );
+
+      if (progressError) {
+        console.error(
+          "Lỗi lưu hoàn thành bài học:",
+          progressError
+        );
+
+        setMessage(
+          "Đã lưu từ vựng nhưng chưa cập nhật trạng thái hoàn thành bài."
+        );
+      } else {
+        setMessage("Đã hoàn thành bài Chào hỏi!");
+      }
+    }
+
+    setSaving(false);
+  }
 
   const progress = Math.min(
     100,
@@ -146,10 +311,15 @@ export default function ChaoHoiPage() {
 
           <div className="lesson-header">
             <div>
-              <div className="lesson-label">HSK 1 • Chủ đề 1</div>
+              <div className="lesson-label">
+                HSK 1 · Chủ đề 1
+              </div>
+
               <h1>Chào hỏi</h1>
+
               <p>
-                Học những từ vựng cơ bản dùng trong giao tiếp và chào hỏi.
+                Học những từ vựng cơ bản dùng trong giao tiếp
+                và chào hỏi.
               </p>
             </div>
           </div>
@@ -166,19 +336,39 @@ export default function ChaoHoiPage() {
             <div className="progress-bar">
               <div
                 className="progress-fill"
-                style={{ width: `${progress}%` }}
+                style={{
+                  width: `${progress}%`,
+                }}
               ></div>
             </div>
           </div>
+
+          {message && (
+            <div
+              style={{
+                marginTop: "16px",
+                padding: "12px 16px",
+                borderRadius: "10px",
+                background: "#eff6ff",
+                color: "#1d4ed8",
+                fontWeight: 600,
+              }}
+            >
+              {message}
+            </div>
+          )}
 
           <div className="vocabulary-list">
             {words.map((word) => {
               const isLearned = learned.includes(word.id);
 
               return (
-                <div className="vocabulary-card" key={word.id}>
-
+                <div
+                  className="vocabulary-card"
+                  key={word.id}
+                >
                   <div className="word-main">
+
                     <div className="word-number">
                       {word.id}
                     </div>
@@ -238,7 +428,8 @@ export default function ChaoHoiPage() {
                         </div>
 
                         <div className="tip-box">
-                          💡 <strong>Mẹo nhớ:</strong> {word.tip}
+                          💡 <strong>Mẹo nhớ:</strong>{" "}
+                          {word.tip}
                         </div>
 
                       </div>
@@ -251,16 +442,20 @@ export default function ChaoHoiPage() {
                         ) : (
                           <button
                             className="learn-button"
-                            onClick={() => markAsLearned(word.id)}
+                            onClick={() =>
+                              markAsLearned(word.id)
+                            }
+                            disabled={saving}
                           >
-                            Đã học xong
+                            {saving
+                              ? "Đang lưu..."
+                              : "Đã học xong"}
                           </button>
                         )}
                       </div>
 
                     </div>
                   </div>
-
                 </div>
               );
             })}
@@ -268,12 +463,18 @@ export default function ChaoHoiPage() {
 
           {learned.length === words.length && (
             <div className="completed-box">
-              <div className="completed-icon">🎉</div>
 
-              <h2>Hoàn thành chủ đề!</h2>
+              <div className="completed-icon">
+                🎉
+              </div>
+
+              <h2>
+                Hoàn thành chủ đề!
+              </h2>
 
               <p>
-                Bạn đã học xong toàn bộ từ vựng của chủ đề Chào hỏi.
+                Bạn đã học xong toàn bộ từ vựng của chủ đề
+                Chào hỏi.
               </p>
 
               <Link
@@ -282,6 +483,7 @@ export default function ChaoHoiPage() {
               >
                 ← Về danh sách chủ đề
               </Link>
+
             </div>
           )}
 

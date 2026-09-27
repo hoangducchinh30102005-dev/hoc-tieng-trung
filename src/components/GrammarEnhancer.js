@@ -6,19 +6,17 @@ import { usePathname } from "next/navigation";
 /*
   GrammarEnhancer dùng chung cho 16 bài HSK1.
 
-  Quan trọng:
-  - Audio câu được đánh số theo TỪNG .example-chinese, không theo .example-card.
-    Điều này xử lý đúng Bài 3 vì một card có thể chứa 2 câu A/B.
-  - Không sửa Pinyin gốc trong page.js.
-  - "Từ trong câu" dùng bộ từ ghép ưu tiên từ dài đến ngắn.
-  - Một số âm biến điệu được xử lý đúng cho Bài 3, 6, 8, 14:
-      不 + thanh 4 -> bú
-      一 + thanh 4 -> yí
-      一 + thanh 1/2/3 -> yì
+  Chức năng:
+  - Thêm audio cho từng câu.
+  - Thêm danh sách từ trong từng câu.
+  - Audio từ riêng lẻ dùng MP3 trong:
+      /public/audio/grammar/hsk1/words/
+  - Khi bấm từ riêng lẻ, tạo Audio mới và load trước
+    để tránh lỗi NETWORK_NO_SOURCE.
+  - Không dùng SpeechSynthesis cho từ riêng lẻ.
 */
 
 const pinyinMap = {
-  // Đại từ
   我: "wǒ",
   你: "nǐ",
   他: "tā",
@@ -26,7 +24,6 @@ const pinyinMap = {
   我们: "wǒmen",
   他们: "tāmen",
 
-  // 是 / 不 / 没有 / 有
   是: "shì",
   不是: "bú shì",
   不: "bù",
@@ -34,7 +31,6 @@ const pinyinMap = {
   没: "méi",
   有: "yǒu",
 
-  // Người / giới thiệu
   学生: "xuésheng",
   老师: "lǎoshī",
   越南人: "Yuènán rén",
@@ -42,7 +38,6 @@ const pinyinMap = {
   中国: "Zhōngguó",
   人: "rén",
 
-  // Từ hỏi / chỉ định
   叫: "jiào",
   什么: "shénme",
   名字: "míngzi",
@@ -52,7 +47,6 @@ const pinyinMap = {
   这: "zhè",
   那: "nà",
 
-  // Trợ từ
   的: "de",
   吗: "ma",
   呢: "ne",
@@ -62,7 +56,6 @@ const pinyinMap = {
   在: "zài",
   吧: "ba",
 
-  // Tính từ / trạng thái
   好: "hǎo",
   漂亮: "piàoliang",
   大: "dà",
@@ -70,7 +63,6 @@ const pinyinMap = {
   热: "rè",
   冷: "lěng",
 
-  // Nhà cửa / người
   书: "shū",
   朋友: "péngyou",
   家: "jiā",
@@ -81,7 +73,6 @@ const pinyinMap = {
   桌子: "zhuōzi",
   上: "shàng",
 
-  // Ăn uống / học tập
   吃饭: "chīfàn",
   吃: "chī",
   喝: "hē",
@@ -91,7 +82,6 @@ const pinyinMap = {
   学习: "xuéxí",
   汉语: "Hànyǔ",
 
-  // Trường học / thời gian
   去: "qù",
   学校: "xuéxiào",
   今天: "jīntiān",
@@ -99,19 +89,16 @@ const pinyinMap = {
   现在: "xiànzài",
   时间: "shíjiān",
 
-  // Đồ vật
   钱: "qián",
   电视: "diànshì",
   手机: "shǒujī",
   车: "chē",
 
-  // Giao tiếp
   请: "qǐng",
   进: "jìn",
   走: "zǒu",
   坐: "zuò",
 
-  // Lượng từ
   本: "běn",
   个: "ge",
   部: "bù",
@@ -119,11 +106,10 @@ const pinyinMap = {
   杯: "bēi",
   字典: "zìdiǎn",
 
-  // Số
   三: "sān",
   两: "liǎng",
+  一: "yī",
 
-  // Cụm có 一 + biến điệu
   一个: "yí ge",
   一本: "yì běn",
   一杯: "yì bēi",
@@ -146,7 +132,6 @@ function findWords(sentence) {
   const text = normalizeChinese(sentence);
 
   const result = [];
-
   let index = 0;
 
   while (index < text.length) {
@@ -173,24 +158,31 @@ function findWords(sentence) {
 function getWordPinyin(word, sentence) {
   const text = normalizeChinese(sentence);
 
-  /*
-    Biến điệu 不:
-    不是 -> bú shì
-  */
   if (word === "不是" || text.includes("不是")) {
     if (word === "不是") {
       return "bú shì";
     }
   }
 
-  /*
-    Biến điệu 一
-  */
-  if (word === "一个") return "yí ge";
-  if (word === "一本") return "yì běn";
-  if (word === "一杯") return "yì bēi";
-  if (word === "一部") return "yí bù";
-  if (word === "一辆") return "yí liàng";
+  if (word === "一个") {
+    return "yí ge";
+  }
+
+  if (word === "一本") {
+    return "yì běn";
+  }
+
+  if (word === "一杯") {
+    return "yì bēi";
+  }
+
+  if (word === "一部") {
+    return "yí bù";
+  }
+
+  if (word === "一辆") {
+    return "yí liàng";
+  }
 
   return pinyinMap[word] || "";
 }
@@ -210,13 +202,68 @@ function speakChinese(text) {
     .replace(/^B:\s*/i, "")
     .trim();
 
+  if (!cleanText) {
+    return;
+  }
+
   const utterance =
     new SpeechSynthesisUtterance(cleanText);
 
   utterance.lang = "zh-CN";
   utterance.rate = 0.85;
+  utterance.volume = 1;
+  utterance.pitch = 1;
 
   window.speechSynthesis.speak(utterance);
+}
+
+function playWordAudio(word) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.Audio === "undefined"
+  ) {
+    return;
+  }
+
+  const src =
+    `/audio/grammar/hsk1/words/${encodeURIComponent(
+      word
+    )}.mp3`;
+
+  const audio = new Audio();
+
+  audio.preload = "auto";
+  audio.src = src;
+
+  audio.addEventListener(
+    "error",
+    function () {
+      console.error(
+        "Không thể tải audio từ:",
+        src,
+        audio.error
+      );
+    },
+    { once: true }
+  );
+
+  audio.addEventListener(
+    "canplaythrough",
+    function () {
+      audio
+        .play()
+        .catch(function (error) {
+          console.error(
+            "Không thể phát audio:",
+            word,
+            error
+          );
+        });
+    },
+    { once: true }
+  );
+
+  audio.load();
 }
 
 function addSentenceAudio(
@@ -227,7 +274,9 @@ function addSentenceAudio(
   const card =
     chineseElement.closest(".example-card");
 
-  if (!card) return;
+  if (!card) {
+    return;
+  }
 
   if (
     chineseElement.parentElement.querySelector(
@@ -251,21 +300,25 @@ function addSentenceAudio(
 
   const button = document.createElement("button");
 
-  button.className = "grammar-audio-button";
+  button.className =
+    "grammar-audio-button";
+
   button.type = "button";
   button.textContent = "🔊 Nghe câu";
 
-  button.onclick = () => {
+  button.onclick = function () {
     audio.currentTime = 0;
 
-    audio.play().catch(() => {
-      const text =
-        chineseElement.textContent.trim();
+    audio
+      .play()
+      .catch(function () {
+        const text =
+          chineseElement.textContent.trim();
 
-      if (text) {
-        speakChinese(text);
-      }
-    });
+        if (text) {
+          speakChinese(text);
+        }
+      });
   };
 
   box.appendChild(button);
@@ -285,7 +338,9 @@ function addWordDetails(
   const card =
     chineseElement.closest(".example-card");
 
-  if (!card) return;
+  if (!card) {
+    return;
+  }
 
   if (
     card.querySelector(
@@ -297,7 +352,9 @@ function addWordDetails(
 
   const words = findWords(chinese);
 
-  if (!words.length) return;
+  if (!words.length) {
+    return;
+  }
 
   const wrapper = document.createElement("div");
 
@@ -306,19 +363,25 @@ function addWordDetails(
 
   const title = document.createElement("div");
 
-  title.className = "grammar-words-title";
-  title.textContent = "Từ trong câu";
+  title.className =
+    "grammar-words-title";
+
+  title.textContent =
+    "Từ trong câu";
 
   wrapper.appendChild(title);
 
   const list = document.createElement("div");
 
-  list.className = "grammar-word-list";
+  list.className =
+    "grammar-word-list";
 
-  words.forEach((word) => {
-    const item = document.createElement("div");
+  words.forEach(function (word) {
+    const item =
+      document.createElement("div");
 
-    item.className = "grammar-word-item";
+    item.className =
+      "grammar-word-item";
 
     const wordChinese =
       document.createElement("div");
@@ -326,7 +389,8 @@ function addWordDetails(
     wordChinese.className =
       "grammar-word-chinese";
 
-    wordChinese.textContent = word;
+    wordChinese.textContent =
+      word;
 
     const wordPinyin =
       document.createElement("div");
@@ -337,16 +401,6 @@ function addWordDetails(
     wordPinyin.textContent =
       getWordPinyin(word, chinese);
 
-    const wordAudio =
-      document.createElement("audio");
-
-    wordAudio.src =
-      `/audio/grammar/hsk1/words/${encodeURIComponent(
-        word
-      )}.mp3`;
-
-    wordAudio.preload = "none";
-
     const button =
       document.createElement("button");
 
@@ -354,22 +408,25 @@ function addWordDetails(
       "grammar-word-audio";
 
     button.type = "button";
+
     button.textContent = "🔊";
+
     button.title =
       `Nghe phát âm ${word}`;
 
-    button.onclick = () => {
-      wordAudio.currentTime = 0;
+    button.addEventListener(
+      "click",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
 
-      wordAudio.play().catch(() => {
-        speakChinese(word);
-      });
-    };
+        playWordAudio(word);
+      }
+    );
 
     item.appendChild(wordChinese);
     item.appendChild(wordPinyin);
     item.appendChild(button);
-    item.appendChild(wordAudio);
 
     list.appendChild(item);
   });
@@ -397,62 +454,59 @@ function addWordDetails(
 export default function GrammarEnhancer() {
   const pathname = usePathname();
 
-  useEffect(() => {
-    const match = pathname.match(
-      /\/ngu-phap\/hsk1\/(\d+)/
-    );
-
-    if (!match) return;
-
-    const lessonNumber = match[1];
-
-    /*
-      Dùng .example-chinese thay vì .example-card.
-
-      Bài 3 có:
-      - 6 example-card
-      - 9 example-chinese
-
-      Vì vậy audio phải đánh số theo 9 câu,
-      không phải 6 card.
-    */
-
-    const sentences =
-      document.querySelectorAll(
-        ".example-chinese"
-      );
-
-    sentences.forEach(
-      (chineseElement, index) => {
-        if (
-          chineseElement.dataset.enhanced ===
-          "true"
-        ) {
-          return;
-        }
-
-        chineseElement.dataset.enhanced =
-          "true";
-
-        const chinese =
-          chineseElement.textContent.trim();
-
-        const sentenceIndex = index + 1;
-
-        addSentenceAudio(
-          chineseElement,
-          lessonNumber,
-          sentenceIndex
+  useEffect(
+    function () {
+      const match =
+        pathname.match(
+          /\/ngu-phap\/hsk1\/(\d+)/
         );
 
-        addWordDetails(
-          chineseElement,
-          chinese,
-          sentenceIndex
-        );
+      if (!match) {
+        return;
       }
-    );
-  }, [pathname]);
+
+      const lessonNumber =
+        match[1];
+
+      const sentences =
+        document.querySelectorAll(
+          ".example-chinese"
+        );
+
+      sentences.forEach(
+        function (chineseElement, index) {
+          if (
+            chineseElement.dataset
+              .enhanced === "true"
+          ) {
+            return;
+          }
+
+          chineseElement.dataset.enhanced =
+            "true";
+
+          const chinese =
+            chineseElement.textContent.trim();
+
+          const sentenceIndex =
+            index + 1;
+
+          addSentenceAudio(
+            chineseElement,
+            lessonNumber,
+            sentenceIndex
+          );
+
+          addWordDetails(
+            chineseElement,
+            chinese,
+            sentenceIndex
+          );
+        }
+      );
+    },
+    [pathname]
+  );
 
   return null;
 }
