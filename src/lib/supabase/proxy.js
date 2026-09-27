@@ -15,26 +15,30 @@ export async function updateSession(request) {
           return request.cookies.getAll();
         },
 
-        setAll(cookiesToSet, headers) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
-            supabaseResponse.cookies.set(name, value, options);
-          });
-
-          if (headers) {
-            for (const [name, value] of headers.entries()) {
-              supabaseResponse.headers.set(name, value);
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(
+            ({ name, value, options }) => {
+              request.cookies.set(name, value);
+              supabaseResponse.cookies.set(
+                name,
+                value,
+                options
+              );
             }
-          }
+          );
         },
       },
     }
   );
 
-  const { data } = await supabase.auth.getClaims();
-  const user = data?.claims ?? null;
+  const { data } =
+    await supabase.auth.getClaims();
 
-  const pathname = request.nextUrl.pathname;
+  const user =
+    data?.claims ?? null;
+
+  const pathname =
+    request.nextUrl.pathname;
 
   const publicPaths = [
     "/",
@@ -48,12 +52,16 @@ export async function updateSession(request) {
     pathname.startsWith("/api/");
 
   if (!user && !isPublicPath) {
-    const url = request.nextUrl.clone();
+    const url =
+      request.nextUrl.clone();
+
     url.pathname = "/dang-nhap";
 
-    const redirectResponse = NextResponse.redirect(url);
+    const redirectResponse =
+      NextResponse.redirect(url);
 
-    for (const cookie of supabaseResponse.cookies.getAll()) {
+    for (const cookie of
+      supabaseResponse.cookies.getAll()) {
       redirectResponse.cookies.set(
         cookie.name,
         cookie.value,
@@ -66,9 +74,10 @@ export async function updateSession(request) {
       "expires",
       "pragma",
     ]) {
-      const value = supabaseResponse.headers.get(
-        headerName
-      );
+      const value =
+        supabaseResponse.headers.get(
+          headerName
+        );
 
       if (value) {
         redirectResponse.headers.set(
