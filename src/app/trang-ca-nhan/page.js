@@ -50,7 +50,10 @@ export default function TrangCaNhanPage() {
       // LẤY TIẾN ĐỘ HSK1
       // ================================
 
-      const { data: progressData, error: progressError } = await supabase
+      const {
+        data: progressData,
+        error: progressError,
+      } = await supabase
         .from("lesson_progress")
         .select("id, completed")
         .eq("user_id", user.id)
@@ -62,26 +65,31 @@ export default function TrangCaNhanPage() {
       }
 
       // ================================
-      // LẤY SỐ TỪ VỰNG ĐÃ HỌC
+      // LẤY SỐ TỪ ĐÃ HỌC
       // ================================
 
-      const { data: vocabularyData, error: vocabularyError } =
-        await supabase
-          .from("learned_vocabulary")
-          .select("id")
-          .eq("user_id", user.id);
+      const {
+        data: vocabularyData,
+        error: vocabularyError,
+      } = await supabase
+        .from("learned_vocabulary")
+        .select("id")
+        .eq("user_id", user.id);
 
       if (!vocabularyError && vocabularyData) {
         setLearnedWords(vocabularyData.length);
       }
 
       // ================================
-      // LẤY SỐ TỪ ĐANG CẦN ÔN
+      // LẤY SỐ TỪ CẦN ÔN
       // ================================
 
       const now = new Date().toISOString();
 
-      const { data: reviewData, error: reviewError } = await supabase
+      const {
+        data: reviewData,
+        error: reviewError,
+      } = await supabase
         .from("learned_vocabulary")
         .select("id")
         .eq("user_id", user.id)
@@ -98,6 +106,10 @@ export default function TrangCaNhanPage() {
     loadUserData();
   }, [router]);
 
+  // ================================
+  // ĐĂNG XUẤT
+  // ================================
+
   async function handleLogout() {
     const supabase = createClient();
 
@@ -107,16 +119,24 @@ export default function TrangCaNhanPage() {
     router.refresh();
   }
 
+  // ================================
+  // TÍNH PHẦN TRĂM TIẾN ĐỘ
+  // ================================
+
   const progressPercent = Math.min(
     100,
-    Math.round((completedLessons / TOTAL_HSK1_LESSONS) * 100)
+    Math.round(
+      (completedLessons / TOTAL_HSK1_LESSONS) * 100
+    )
   );
 
   if (loading) {
     return (
       <main className="personal-page">
         <div className="personal-container">
-          <p>Đang tải trang cá nhân...</p>
+          <div className="personal-card">
+            <p>Đang tải thông tin...</p>
+          </div>
         </div>
       </main>
     );
@@ -132,8 +152,6 @@ export default function TrangCaNhanPage() {
 
         <div className="personal-header">
           <div>
-            <p className="personal-label">TRANG CHỦ CÁ NHÂN</p>
-
             <h1>
               Xin chào,{" "}
               {profile?.full_name || user?.email}
@@ -141,7 +159,8 @@ export default function TrangCaNhanPage() {
             </h1>
 
             <p>
-              Chào mừng bạn quay lại với hành trình học tiếng Trung.
+              Chào mừng bạn quay lại với hành trình học
+              tiếng Trung.
             </p>
           </div>
 
@@ -178,20 +197,23 @@ export default function TrangCaNhanPage() {
               ></div>
             </div>
 
-            <p style={{ marginTop: "10px", color: "#64748b" }}>
-              Đã hoàn thành {completedLessons}/{TOTAL_HSK1_LESSONS} bài học
+            <p
+              style={{
+                marginTop: "10px",
+                color: "#64748b",
+              }}
+            >
+              Đã hoàn thành {completedLessons}/
+              {TOTAL_HSK1_LESSONS} bài học
             </p>
           </div>
         </section>
 
         {/* ================================
-            THỐNG KÊ
+            THỐNG KÊ HỌC TẬP
         ================================= */}
 
-        <section
-          className="personal-card"
-          style={{ marginTop: "20px" }}
-        >
+        <section className="personal-card">
           <h2>Thống kê học tập</h2>
 
           <div
@@ -203,6 +225,9 @@ export default function TrangCaNhanPage() {
               marginTop: "18px",
             }}
           >
+
+            {/* BÀI ĐÃ HOÀN THÀNH */}
+
             <div
               style={{
                 padding: "20px",
@@ -230,6 +255,8 @@ export default function TrangCaNhanPage() {
                 Bài đã hoàn thành
               </div>
             </div>
+
+            {/* TỪ VỰNG */}
 
             <div
               style={{
@@ -259,6 +286,8 @@ export default function TrangCaNhanPage() {
               </div>
             </div>
 
+            {/* TỪ CẦN ÔN */}
+
             <div
               style={{
                 padding: "20px",
@@ -286,6 +315,68 @@ export default function TrangCaNhanPage() {
                 Từ cần ôn
               </div>
             </div>
+
+          </div>
+        </section>
+
+        {/* ================================
+            TEST HSK1
+        ================================= */}
+
+        <section className="personal-card">
+          <div className="personal-card-title">
+            <h2>📝 Kiểm tra HSK 1</h2>
+            <span>30 câu</span>
+          </div>
+
+          <div
+            style={{
+              marginTop: "16px",
+              padding: "20px",
+              borderRadius: "14px",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "20px",
+                color: "#0f172a",
+              }}
+            >
+              Test tổng hợp HSK 1
+            </h3>
+
+            <p
+              style={{
+                marginTop: "8px",
+                marginBottom: "16px",
+                color: "#64748b",
+                lineHeight: 1.6,
+              }}
+            >
+              Kiểm tra tổng hợp kiến thức HSK 1 gồm
+              từ vựng, ngữ pháp, nghe hiểu, đọc hiểu
+              và vận dụng.
+            </p>
+
+            <Link
+              href="/test/hsk1"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "11px 20px",
+                borderRadius: "10px",
+                background: "#2563eb",
+                color: "#ffffff",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              Làm Test HSK1 →
+            </Link>
           </div>
         </section>
 
@@ -295,8 +386,13 @@ export default function TrangCaNhanPage() {
 
         <div className="personal-grid">
 
-          <Link href="/hoc/hsk1" className="personal-feature">
-            <div className="feature-icon">📚</div>
+          <Link
+            href="/hoc/hsk1"
+            className="personal-feature"
+          >
+            <div className="feature-icon">
+              📚
+            </div>
 
             <h3>Tiếp tục học</h3>
 
@@ -305,8 +401,13 @@ export default function TrangCaNhanPage() {
             </p>
           </Link>
 
-          <Link href="/tu-vung" className="personal-feature">
-            <div className="feature-icon">📖</div>
+          <Link
+            href="/tu-vung"
+            className="personal-feature"
+          >
+            <div className="feature-icon">
+              📖
+            </div>
 
             <h3>Từ vựng đã học</h3>
 
@@ -315,8 +416,13 @@ export default function TrangCaNhanPage() {
             </p>
           </Link>
 
-          <Link href="/ngu-phap" className="personal-feature">
-            <div className="feature-icon">📘</div>
+          <Link
+            href="/ngu-phap"
+            className="personal-feature"
+          >
+            <div className="feature-icon">
+              📘
+            </div>
 
             <h3>Ngữ pháp</h3>
 
@@ -325,8 +431,13 @@ export default function TrangCaNhanPage() {
             </p>
           </Link>
 
-          <Link href="/luyen-nghe" className="personal-feature">
-            <div className="feature-icon">🎧</div>
+          <Link
+            href="/luyen-nghe"
+            className="personal-feature"
+          >
+            <div className="feature-icon">
+              🎧
+            </div>
 
             <h3>Luyện nghe</h3>
 
@@ -346,22 +457,28 @@ export default function TrangCaNhanPage() {
 
           <div className="account-row">
             <span>Tên học sinh</span>
+
             <strong>
-              {profile?.full_name || "Chưa cập nhật"}
+              {profile?.full_name ||
+                "Chưa cập nhật"}
             </strong>
           </div>
 
           <div className="account-row">
             <span>Tên đăng nhập</span>
+
             <strong>
-              {profile?.username || "Chưa cập nhật"}
+              {profile?.username ||
+                "Chưa cập nhật"}
             </strong>
           </div>
 
           <div className="account-row">
             <span>Email</span>
+
             <strong>
-              {user?.email || "Không có email"}
+              {user?.email ||
+                "Không có email"}
             </strong>
           </div>
         </section>
